@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useToast } from '@/hooks/use-toast'
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,70 +43,14 @@ const categoryColors: Record<string, string> = {
   other: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
 }
 
-const mockExpenses: Expense[] = [
-  {
-    id: "1",
-    category: "groceries",
-    amount: 85.5,
-    description: "Weekly grocery shopping",
-    date: "2024-11-07",
-    member: "Jane Doe",
-  },
-  {
-    id: "2",
-    category: "utilities",
-    amount: 120,
-    description: "Monthly electricity bill",
-    date: "2024-11-06",
-    member: "John Doe",
-  },
-  {
-    id: "3",
-    category: "entertainment",
-    amount: 45,
-    description: "Movie tickets",
-    date: "2024-11-05",
-    member: "Tom Doe",
-  },
-  {
-    id: "4",
-    category: "dining",
-    amount: 65,
-    description: "Restaurant dinner",
-    date: "2024-11-04",
-    member: "Jane Doe",
-  },
-  {
-    id: "5",
-    category: "transport",
-    amount: 50,
-    description: "Gas station fill-up",
-    date: "2024-11-03",
-    member: "John Doe",
-  },
-  {
-    id: "6",
-    category: "shopping",
-    amount: 120.75,
-    description: "Clothing purchase",
-    date: "2024-11-02",
-    member: "Jane Doe",
-  },
-  {
-    id: "7",
-    category: "health",
-    amount: 35.99,
-    description: "Pharmacy",
-    date: "2024-11-01",
-    member: "Tom Doe",
-  },
-]
-
-const members = ["John Doe", "Jane Doe", "Tom Doe"]
+// expenses and member lists are loaded from the API (no dummy data)
 
 export default function ExpensesPage() {
-  const [expenses, setExpenses] = useState<Expense[]>(mockExpenses)
+  const [expenses, setExpenses] = useState<Expense[]>([])
   const [isOpen, setIsOpen] = useState(false)
+  const [families, setFamilies] = useState<any[]>([])
+  const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null)
+  const [members, setMembers] = useState<Array<{ id: string; name: string }>>([])
   const [filterCategory, setFilterCategory] = useState<string>("all")
   const [filterMember, setFilterMember] = useState<string>("all")
   const [startDate, setStartDate] = useState("")
@@ -115,8 +60,10 @@ export default function ExpensesPage() {
     amount: "",
     description: "",
     date: new Date().toISOString().split("T")[0],
-    member: "John Doe",
+    member: "",
   })
+
+  const { toast } = useToast()
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((expense) => {
@@ -126,6 +73,55 @@ export default function ExpensesPage() {
       return categoryMatch && memberMatch && dateMatch
     })
   }, [expenses, filterCategory, filterMember, startDate, endDate])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await fetch('/api/families')
+        if (r.ok) {
+          const d = await r.json()
+          const fams = d.families || []
+          setFamilies(fams)
+          if (fams[0]) {
+            setSelectedFamilyId(fams[0].id)
+            const mapped = (fams[0].members || []).map((m: any) => ({ id: m.id, name: (m.user && (m.user.name || m.user.email)) || 'Member' }))
+            setMembers(mapped)
+          }
+        }
+      } catch (e) {
+        toast({ title: 'Failed to load families', description: 'Could not fetch your families', variant: 'destructive' })
+      }
+    })()
+  }, [])
+
+  useEffect(() => {
+    if (!selectedFamilyId) return
+    ;(async () => {
+      try {
+        const r = await fetch(`/api/expenses?familyId=${selectedFamilyId}`)
+        if (r.ok) {
+          const d = await r.json()
+          setExpenses((d.expenses || []).map((e: any) => ({
+            id: e.id,
+            category: e.category,
+            amount: Number(e.amount),
+            description: e.description,
+            date: e.date,
+            member: (members.find((m) => m.id === e.familyMemberId)?.name) || e.familyMemberId,
+          })))
+        }
+      } catch (e) {
+        toast({ title: 'Failed to load expenses', description: 'Could not fetch expenses for this family', variant: 'destructive' })
+      }
+    })()
+  }, [selectedFamilyId])
+
+  useEffect(() => {
+    // set default member for new expense when members list changes
+    if (members.length > 0) {
+      setNewExpense((prev) => ({ ...prev, member: members[0].name }))
+    }
+  }, [members])
 
   const categoryTotals = useMemo(() => {
     const totals: Record<string, number> = {}
@@ -148,23 +144,36 @@ export default function ExpensesPage() {
 
   const handleAddExpense = () => {
     if (newExpense.amount && newExpense.description) {
-      const expense: Expense = {
-        id: Date.now().toString(),
-        category: newExpense.category,
-        amount: Number.parseFloat(newExpense.amount),
-        description: newExpense.description,
-        date: newExpense.date,
-        member: newExpense.member,
-      }
-      setExpenses([expense, ...expenses])
-      setNewExpense({
-        category: "groceries",
-        amount: "",
-        description: "",
-        date: new Date().toISOString().split("T")[0],
-        member: "John Doe",
-      })
-      setIsOpen(false)
+      ;(async () => {
+        try {
+          if (!selectedFamilyId) return toast({ title: 'Select a family', description: 'Please select a family first', variant: 'destructive' })
+          const res = await fetch('/api/expenses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              description: newExpense.description,
+              amount: Number.parseFloat(newExpense.amount),
+              category: newExpense.category,
+              date: newExpense.date,
+              familyId: selectedFamilyId,
+            }),
+          })
+          const data = await res.json()
+          if (res.ok) {
+            // refetch
+            const r2 = await fetch(`/api/expenses?familyId=${selectedFamilyId}`)
+            const d2 = await r2.json()
+            setExpenses((d2.expenses || []).map((e: any) => ({ id: e.id, category: e.category, amount: Number(e.amount), description: e.description, date: e.date, member: (members.find((m) => m.id === e.familyMemberId)?.name) || e.familyMemberId })))
+            setNewExpense({ category: 'groceries', amount: '', description: '', date: new Date().toISOString().split('T')[0], member: '' })
+            setIsOpen(false)
+          } else {
+            toast({ title: 'Failed to add expense', description: data.error || 'Failed to add expense', variant: 'destructive' })
+          }
+        } catch (err) {
+          console.warn(err)
+          toast({ title: 'Failed to add expense', description: 'An unexpected error occurred', variant: 'destructive' })
+        }
+      })()
     }
   }
 
@@ -224,8 +233,8 @@ export default function ExpensesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {members.map((member) => (
-                        <SelectItem key={member} value={member}>
-                          {member}
+                        <SelectItem key={member.id} value={member.name}>
+                          {member.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -354,8 +363,8 @@ export default function ExpensesPage() {
                   <SelectContent>
                     <SelectItem value="all">All Members</SelectItem>
                     {members.map((member) => (
-                      <SelectItem key={member} value={member}>
-                        {member}
+                      <SelectItem key={member.id} value={member.name}>
+                        {member.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

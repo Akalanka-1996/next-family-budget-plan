@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -14,46 +15,53 @@ interface RecentExpense {
   categoryColor: string
 }
 
-const recentExpenses: RecentExpense[] = [
-  {
-    id: "1",
-    description: "Grocery Shopping",
-    amount: 85.5,
-    category: "Groceries",
-    member: "Jane Doe",
-    date: "Today",
-    categoryColor: "bg-green-100 text-green-800",
-  },
-  {
-    id: "2",
-    description: "Gas Station",
-    amount: 52.0,
-    category: "Transport",
-    member: "John Doe",
-    date: "Yesterday",
-    categoryColor: "bg-orange-100 text-orange-800",
-  },
-  {
-    id: "3",
-    description: "Movie Tickets",
-    amount: 45.0,
-    category: "Entertainment",
-    member: "Tom Doe",
-    date: "2 days ago",
-    categoryColor: "bg-purple-100 text-purple-800",
-  },
-  {
-    id: "4",
-    description: "Restaurant Dinner",
-    amount: 65.0,
-    category: "Dining",
-    member: "Jane Doe",
-    date: "3 days ago",
-    categoryColor: "bg-pink-100 text-pink-800",
-  },
-]
+const categoryColors: Record<string, string> = {
+  groceries: "bg-green-100 text-green-800",
+  transport: "bg-orange-100 text-orange-800",
+  entertainment: "bg-purple-100 text-purple-800",
+  dining: "bg-pink-100 text-pink-800",
+  utilities: "bg-blue-100 text-blue-800",
+  health: "bg-red-100 text-red-800",
+  shopping: "bg-yellow-100 text-yellow-800",
+  other: "bg-gray-100 text-gray-800",
+}
 
 export function RecentExpenses() {
+  const [recent, setRecent] = useState<RecentExpense[]>([])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await fetch('/api/families')
+        if (!r.ok) return
+        const d = await r.json()
+        const fams = d.families || []
+        if (!fams[0]) return
+        const fam = fams[0]
+        const memberMap: Record<string, string> = {}
+        ;(fam.members || []).forEach((m: any) => {
+          memberMap[m.id] = (m.user && (m.user.name || m.user.email)) || 'Member'
+        })
+
+        const re = await fetch(`/api/expenses?familyId=${fam.id}`)
+        if (!re.ok) return
+        const ed = await re.json()
+        const mapped = (ed.expenses || []).slice(0, 5).map((e: any) => ({
+          id: e.id,
+          description: e.description,
+          amount: Number(e.amount),
+          category: e.category.charAt(0).toUpperCase() + e.category.slice(1),
+          member: memberMap[e.familyMemberId] || e.familyMemberId,
+          date: new Date(e.date).toLocaleDateString(),
+          categoryColor: categoryColors[e.category] || 'bg-gray-100 text-gray-800',
+        }))
+        setRecent(mapped)
+      } catch (err) {
+        // ignore
+      }
+    })()
+  }, [])
+
   return (
     <Card>
       <CardHeader>
@@ -62,7 +70,7 @@ export function RecentExpenses() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {recentExpenses.map((expense) => (
+          {recent.map((expense) => (
             <div
               key={expense.id}
               className="flex items-center justify-between py-3 border-b border-border last:border-b-0"
@@ -93,6 +101,7 @@ export function RecentExpenses() {
               </div>
             </div>
           ))}
+          {recent.length === 0 && <p className="text-sm text-muted-foreground">No recent expenses</p>}
         </div>
       </CardContent>
     </Card>

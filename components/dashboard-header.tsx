@@ -17,7 +17,7 @@ interface DashboardHeaderProps {
   userInitials?: string
 }
 
-export function DashboardHeader({ userName = "John Doe", userInitials = "JD" }: DashboardHeaderProps) {
+export function DashboardHeader({ userName = "", userInitials = "" }: DashboardHeaderProps) {
   const pathname = usePathname()
 
   return (

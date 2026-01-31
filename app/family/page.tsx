@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useToast } from '@/hooks/use-toast'
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,32 +29,6 @@ interface FamilyMember {
   spendingLimit: number
 }
 
-const mockMembers: FamilyMember[] = [
-  {
-    id: "1",
-    name: "John Doe",
-    email: "john@example.com",
-    role: "admin",
-    joinedDate: "Jan 15, 2024",
-    spendingLimit: 0,
-  },
-  {
-    id: "2",
-    name: "Jane Doe",
-    email: "jane@example.com",
-    role: "member",
-    joinedDate: "Jan 15, 2024",
-    spendingLimit: 500,
-  },
-  {
-    id: "3",
-    name: "Tom Doe",
-    email: "tom@example.com",
-    role: "member",
-    joinedDate: "Feb 20, 2024",
-    spendingLimit: 300,
-  },
-]
 
 interface FamilySettings {
   familyName: string
@@ -61,19 +36,48 @@ interface FamilySettings {
   monthlyBudget: number
 }
 
-const mockSettings: FamilySettings = {
-  familyName: "Doe Family",
+const defaultSettings: FamilySettings = {
+  familyName: "",
   currency: "USD",
-  monthlyBudget: 5000,
+  monthlyBudget: 0,
 }
 
 export default function FamilyPage() {
-  const [members, setMembers] = useState<FamilyMember[]>(mockMembers)
-  const [settings, setSettings] = useState<FamilySettings>(mockSettings)
+  const [members, setMembers] = useState<FamilyMember[]>([])
+  const [settings, setSettings] = useState<FamilySettings>(defaultSettings)
+  const [familyId, setFamilyId] = useState<string | null>(null)
   const [newMember, setNewMember] = useState({ name: "", email: "", role: "member", spendingLimit: "" })
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [editingSettings, setEditingSettings] = useState<FamilySettings>(settings)
+  const { toast } = useToast()
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await fetch('/api/families')
+        if (!r.ok) return
+        const d = await r.json()
+        const fams = d.families || []
+        if (fams[0]) {
+          const fam = fams[0]
+          setFamilyId(fam.id)
+          setSettings({ familyName: fam.name || '', currency: fam.currency || 'USD', monthlyBudget: Number(fam.monthlyBudget || 0) })
+          const mapped = (fam.members || []).map((m: any) => ({
+            id: m.id,
+            name: (m.user && (m.user.name || m.user.email)) || 'Member',
+            email: m.user?.email || '',
+            role: m.role === 'admin' ? 'admin' : 'member',
+            joinedDate: m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : new Date().toLocaleDateString(),
+            spendingLimit: Number(m.monthlyLimit || 0),
+          }))
+          setMembers(mapped)
+        }
+      } catch (e) {
+        // ignore
+      }
+    })()
+  }, [])
 
   const handleAddMember = () => {
     if (newMember.name && newMember.email) {
@@ -92,6 +96,19 @@ export default function FamilyPage() {
       setMembers([...members, member])
       setNewMember({ name: "", email: "", role: "member", spendingLimit: "" })
       setIsAddMemberOpen(false)
+      // If we have a real familyId, call backend to add member
+      if (familyId) {
+        fetch('/api/families/add-member', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ familyId, email: newMember.email, role: newMember.role, monthlyLimit: newMember.spendingLimit ? Number(newMember.spendingLimit) : 0 }),
+        }).then(async (r) => {
+          if (!r.ok) {
+            const err = await r.json()
+            toast({ title: 'Failed to add member', description: err?.error || 'Failed to add member', variant: 'destructive' })
+          }
+        })
+      }
     }
   }
 
@@ -110,6 +127,20 @@ export default function FamilyPage() {
   const handleSaveSettings = () => {
     setSettings(editingSettings)
     setIsSettingsOpen(false)
+    // create family on backend if not exists
+    ;(async () => {
+      try {
+        const res = await fetch('/api/families', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: editingSettings.familyName, description: '', currency: editingSettings.currency, monthlyBudget: editingSettings.monthlyBudget }),
+        })
+        const data = await res.json()
+        if (res.ok) setFamilyId(data.family.id)
+      } catch (e) {
+        toast({ title: 'Failed to create family', description: 'Could not create family', variant: 'destructive' })
+      }
+    })()
   }
 
   return (

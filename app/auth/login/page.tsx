@@ -3,6 +3,8 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useRouter } from 'next/navigation'
+import { useToast } from '@/hooks/use-toast'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +22,9 @@ export default function LoginPage() {
 
   const [isLoading, setIsLoading] = useState(false)
 
+  const router = useRouter()
+  const { toast } = useToast()
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
     setFormData((prev) => ({
@@ -31,11 +36,25 @@ export default function LoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    // Mock login
-    setTimeout(() => {
-      setIsLoading(false)
-      // In a real app, you would navigate to dashboard
-    }, 2000)
+    ;(async () => {
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: formData.email, password: formData.password }),
+        })
+        const data = await res.json()
+        setIsLoading(false)
+        if (res.ok) {
+          router.push('/dashboard')
+        } else {
+          toast({ title: 'Login failed', description: data.error || 'Invalid credentials', variant: 'destructive' })
+        }
+      } catch (err) {
+        setIsLoading(false)
+        toast({ title: 'Login error', description: 'An unexpected error occurred', variant: 'destructive' })
+      }
+    })()
   }
 
   return (

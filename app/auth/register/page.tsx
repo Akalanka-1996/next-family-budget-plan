@@ -3,6 +3,8 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useToast } from '@/hooks/use-toast'
+import { useRouter } from 'next/navigation'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,14 +31,35 @@ export default function RegisterPage() {
     }))
   }
 
+  const { toast } = useToast()
+  const router = useRouter()
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    // Mock registration
-    setTimeout(() => {
-      setIsLoading(false)
-      // In a real app, you would navigate to dashboard
-    }, 2000)
+    ;(async () => {
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.firstName + ' ' + formData.lastName,
+            email: formData.email,
+            password: formData.password,
+          }),
+        })
+        const data = await res.json()
+        setIsLoading(false)
+        if (res.ok) {
+          router.push('/auth/login')
+        } else {
+          toast({ title: 'Registration failed', description: data.error || 'Registration failed', variant: 'destructive' })
+        }
+      } catch (err) {
+        setIsLoading(false)
+        toast({ title: 'Registration error', description: 'An unexpected error occurred', variant: 'destructive' })
+      }
+    })()
   }
 
   return (
