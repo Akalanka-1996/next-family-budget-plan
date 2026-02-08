@@ -4,11 +4,11 @@ import { getCurrentUser } from '@/lib/session'
 import { z } from 'zod'
 
 const BodySchema = z.object({
-  description: z.string(),
-  amount: z.number(),
-  source: z.string(),
+  description: z.string().min(1, "Description is required"),
+  amount: z.number().min(0.01, "Amount must be greater than 0"),
+  source: z.string().min(1, "Income source is required"),
   date: z.string().optional(),
-  familyId: z.string(),
+  familyId: z.string().min(1, "Family ID is required"),
 })
 
 function round2(n: number) {
@@ -21,21 +21,28 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const parsed = BodySchema.parse(body)
+    const parsed = BodySchema.safeParse(body)
 
-    const fm = await prisma.familyMember.findUnique({ where: { userId_familyId: { userId: user.id, familyId: parsed.familyId } } })
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0]?.message || 'Invalid income data' },
+        { status: 400 }
+      )
+    }
+
+    const fm = await prisma.familyMember.findUnique({ where: { userId_familyId: { userId: user.id, familyId: parsed.data.familyId } } })
     if (!fm) return NextResponse.json({ error: 'Not a family member' }, { status: 403 })
 
-    const amt = round2(parsed.amount)
+    const amt = round2(parsed.data.amount)
 
     const income = await prisma.income.create({
       data: {
-        description: parsed.description,
+        description: parsed.data.description,
         amount: amt,
-        source: parsed.source,
-        date: parsed.date ? new Date(parsed.date) : undefined,
+        source: parsed.data.source,
+        date: parsed.data.date ? new Date(parsed.data.date) : undefined,
         userId: user.id,
-        familyId: parsed.familyId,
+        familyId: parsed.data.familyId,
         familyMemberId: fm.id,
       },
     })

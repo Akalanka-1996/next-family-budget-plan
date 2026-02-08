@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/session'
 import { z } from 'zod'
 
 const BodySchema = z.object({
-  name: z.string(),
+  name: z.string().min(1, "Family name is required"),
   description: z.string().optional(),
   currency: z.string().optional(),
   monthlyBudget: z.number().optional(),
@@ -16,14 +16,21 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const parsed = BodySchema.parse(body)
+    const parsed = BodySchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0]?.message || 'Invalid family data' },
+        { status: 400 }
+      )
+    }
 
     const family = await prisma.family.create({
       data: {
-        name: parsed.name,
-        description: parsed.description,
-        currency: parsed.currency ?? 'USD',
-        monthlyBudget: parsed.monthlyBudget ?? 0,
+        name: parsed.data.name,
+        description: parsed.data.description,
+        currency: parsed.data.currency ?? 'USD',
+        monthlyBudget: parsed.data.monthlyBudget ?? 0,
         members: {
           create: {
             userId: user.id,

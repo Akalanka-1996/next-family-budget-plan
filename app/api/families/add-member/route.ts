@@ -4,10 +4,10 @@ import { getCurrentUser } from '@/lib/session'
 import { z } from 'zod'
 
 const BodySchema = z.object({
-  familyId: z.string(),
-  email: z.string().email(),
-  role: z.string().optional(),
-  monthlyLimit: z.number().optional(),
+  familyId: z.string().min(1, "Family ID is required"),
+  email: z.string().email("Invalid email address"),
+  role: z.enum(["admin", "member"]).optional().default("member"),
+  monthlyLimit: z.number().min(0, "Monthly limit must be 0 or greater").optional().default(0),
 })
 
 export async function POST(req: Request) {
@@ -16,21 +16,32 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const parsed = BodySchema.parse(body)
+    const parsed = BodySchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0]?.message || 'Invalid member data' },
+        { status: 400 }
+      )
+    }
 
     // Only allow if user is admin of the family
-    const member = await prisma.familyMember.findUnique({ where: { userId_familyId: { userId: user.id, familyId: parsed.familyId } } })
-    if (!member || member.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const member = await prisma.familyMember.findUnique({ where: { userId_familyId: { userId: user.id, familyId: parsed.data.familyId } } })
+    if (!member || member.role !== 'admin') return NextResponse.json({ error: 'You must be an admin to add members' }, { status: 403 })
 
-    const invited = await prisma.user.findUnique({ where: { email: parsed.email } })
+    const invited = await prisma.user.findUnique({ where: { email: parsed.data.email } })
     if (!invited) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+    // Check if user is already a member
+    const existing = await prisma.familyMember.findUnique({ where: { userId_familyId: { userId: invited.id, familyId: parsed.data.familyId } } })
+    if (existing) return NextResponse.json({ error: 'User is already a member of this family' }, { status: 400 })
 
     const fm = await prisma.familyMember.create({
       data: {
         userId: invited.id,
-        familyId: parsed.familyId,
-        role: parsed.role ?? 'member',
-        monthlyLimit: parsed.monthlyLimit ?? 0,
+        familyId: parsed.data.familyId,
+        role: parsed.data.role,
+        monthlyLimit: parsed.data.monthlyLimit,
       },
     })
 

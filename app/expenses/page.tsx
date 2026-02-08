@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, Trash2, Filter } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { expenseSchema, type ExpenseFormData } from "@/lib/validations"
 
 interface Expense {
   id: string
@@ -55,13 +56,15 @@ export default function ExpensesPage() {
   const [filterMember, setFilterMember] = useState<string>("all")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-  const [newExpense, setNewExpense] = useState({
+  const [newExpense, setNewExpense] = useState<ExpenseFormData>({
     category: "groceries",
-    amount: "",
+    amount: 0,
     description: "",
     date: new Date().toISOString().split("T")[0],
     member: "",
   })
+  const [errors, setErrors] = useState<Partial<Record<keyof ExpenseFormData, string>>>({})
+  const [isLoading, setIsLoading] = useState(false)
 
   const { toast } = useToast()
 
@@ -143,38 +146,56 @@ export default function ExpensesPage() {
   const averageExpense = filteredExpenses.length > 0 ? totalExpenses / filteredExpenses.length : 0
 
   const handleAddExpense = () => {
-    if (newExpense.amount && newExpense.description) {
-      ;(async () => {
-        try {
-          if (!selectedFamilyId) return toast({ title: 'Select a family', description: 'Please select a family first', variant: 'destructive' })
-          const res = await fetch('/api/expenses', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              description: newExpense.description,
-              amount: Number.parseFloat(newExpense.amount),
-              category: newExpense.category,
-              date: newExpense.date,
-              familyId: selectedFamilyId,
-            }),
-          })
-          const data = await res.json()
-          if (res.ok) {
-            // refetch
-            const r2 = await fetch(`/api/expenses?familyId=${selectedFamilyId}`)
-            const d2 = await r2.json()
-            setExpenses((d2.expenses || []).map((e: any) => ({ id: e.id, category: e.category, amount: Number(e.amount), description: e.description, date: e.date, member: (members.find((m) => m.id === e.familyMemberId)?.name) || e.familyMemberId })))
-            setNewExpense({ category: 'groceries', amount: '', description: '', date: new Date().toISOString().split('T')[0], member: '' })
-            setIsOpen(false)
-          } else {
-            toast({ title: 'Failed to add expense', description: data.error || 'Failed to add expense', variant: 'destructive' })
-          }
-        } catch (err) {
-          console.warn(err)
-          toast({ title: 'Failed to add expense', description: 'An unexpected error occurred', variant: 'destructive' })
-        }
-      })()
+    // Validate form data with Zod
+    const result = expenseSchema.safeParse(newExpense)
+    if (!result.success) {
+      const newErrors: Partial<Record<keyof ExpenseFormData, string>> = {}
+      result.error.errors.forEach((error) => {
+        const path = error.path[0] as keyof ExpenseFormData
+        newErrors[path] = error.message
+      })
+      setErrors(newErrors)
+      return
     }
+
+    if (!selectedFamilyId) {
+      toast({ title: 'Select a family', description: 'Please select a family first', variant: 'destructive' })
+      return
+    }
+
+    setIsLoading(true)
+    ;(async () => {
+      try {
+        const res = await fetch('/api/expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: newExpense.description,
+            amount: Number(newExpense.amount),
+            category: newExpense.category,
+            date: newExpense.date,
+            familyId: selectedFamilyId,
+          }),
+        })
+        const data = await res.json()
+        setIsLoading(false)
+        if (res.ok) {
+          // refetch
+          const r2 = await fetch(`/api/expenses?familyId=${selectedFamilyId}`)
+          const d2 = await r2.json()
+          setExpenses((d2.expenses || []).map((e: any) => ({ id: e.id, category: e.category, amount: Number(e.amount), description: e.description, date: e.date, member: (members.find((m) => m.id === e.familyMemberId)?.name) || e.familyMemberId })))
+          setNewExpense({ category: 'groceries', amount: 0, description: '', date: new Date().toISOString().split('T')[0], member: '' })
+          setErrors({})
+          setIsOpen(false)
+          toast({ title: 'Success', description: 'Expense added successfully', variant: 'default' })
+        } else {
+          toast({ title: 'Failed to add expense', description: data.error || 'Failed to add expense', variant: 'destructive' })
+        }
+      } catch (err) {
+        setIsLoading(false)
+        toast({ title: 'Failed to add expense', description: 'An unexpected error occurred', variant: 'destructive' })
+      }
+    })()
   }
 
   const handleDeleteExpense = (id: string) => {
@@ -207,9 +228,12 @@ export default function ExpensesPage() {
                   <Label htmlFor="category">Category</Label>
                   <Select
                     value={newExpense.category}
-                    onValueChange={(value) => setNewExpense((prev) => ({ ...prev, category: value }))}
+                    onValueChange={(value) => {
+                      setNewExpense((prev) => ({ ...prev, category: value }))
+                      if (errors.category) setErrors({ ...errors, category: undefined })
+                    }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={errors.category ? "border-red-500" : ""}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -220,15 +244,19 @@ export default function ExpensesPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {errors.category && <p className="text-sm text-red-500">{errors.category}</p>}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="member">Member</Label>
                   <Select
                     value={newExpense.member}
-                    onValueChange={(value) => setNewExpense((prev) => ({ ...prev, member: value }))}
+                    onValueChange={(value) => {
+                      setNewExpense((prev) => ({ ...prev, member: value }))
+                      if (errors.member) setErrors({ ...errors, member: undefined })
+                    }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={errors.member ? "border-red-500" : ""}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -239,6 +267,7 @@ export default function ExpensesPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {errors.member && <p className="text-sm text-red-500">{errors.member}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -248,14 +277,17 @@ export default function ExpensesPage() {
                     type="number"
                     step="0.01"
                     placeholder="0.00"
-                    value={newExpense.amount}
-                    onChange={(e) =>
+                    value={newExpense.amount || ""}
+                    onChange={(e) => {
                       setNewExpense((prev) => ({
                         ...prev,
-                        amount: e.target.value,
+                        amount: e.target.value ? parseFloat(e.target.value) : 0,
                       }))
-                    }
+                      if (errors.amount) setErrors({ ...errors, amount: undefined })
+                    }}
+                    className={errors.amount ? "border-red-500" : ""}
                   />
+                  {errors.amount && <p className="text-sm text-red-500">{errors.amount}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -264,13 +296,16 @@ export default function ExpensesPage() {
                     id="description"
                     placeholder="Enter expense description"
                     value={newExpense.description}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setNewExpense((prev) => ({
                         ...prev,
                         description: e.target.value,
                       }))
-                    }
+                      if (errors.description) setErrors({ ...errors, description: undefined })
+                    }}
+                    className={errors.description ? "border-red-500" : ""}
                   />
+                  {errors.description && <p className="text-sm text-red-500">{errors.description}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -279,17 +314,20 @@ export default function ExpensesPage() {
                     id="date"
                     type="date"
                     value={newExpense.date}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setNewExpense((prev) => ({
                         ...prev,
                         date: e.target.value,
                       }))
-                    }
+                      if (errors.date) setErrors({ ...errors, date: undefined })
+                    }}
+                    className={errors.date ? "border-red-500" : ""}
                   />
+                  {errors.date && <p className="text-sm text-red-500">{errors.date}</p>}
                 </div>
 
-                <Button onClick={handleAddExpense} className="w-full bg-primary hover:bg-primary/90">
-                  Add Expense
+                <Button onClick={handleAddExpense} className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
+                  {isLoading ? "Adding..." : "Add Expense"}
                 </Button>
               </div>
             </DialogContent>

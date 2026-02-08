@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserPlus, Mail, Calendar, Trash2, DollarSign, Settings2 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { addMemberSchema, familySettingsSchema, type AddMemberFormData, type FamilySettingsFormData } from "@/lib/validations"
 
 interface FamilyMember {
   id: string
@@ -28,7 +29,6 @@ interface FamilyMember {
   joinedDate: string
   spendingLimit: number
 }
-
 
 interface FamilySettings {
   familyName: string
@@ -46,10 +46,12 @@ export default function FamilyPage() {
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [settings, setSettings] = useState<FamilySettings>(defaultSettings)
   const [familyId, setFamilyId] = useState<string | null>(null)
-  const [newMember, setNewMember] = useState({ name: "", email: "", role: "member", spendingLimit: "" })
+  const [newMember, setNewMember] = useState<AddMemberFormData>({ name: "", email: "", role: "member", spendingLimit: 0 })
+  const [newMemberErrors, setNewMemberErrors] = useState<Partial<Record<keyof AddMemberFormData, string>>>({})
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [editingSettings, setEditingSettings] = useState<FamilySettings>(settings)
+  const [settingsErrors, setSettingsErrors] = useState<Partial<Record<keyof FamilySettingsFormData, string>>>({})
   const { toast } = useToast()
 
   useEffect(() => {
@@ -80,36 +82,44 @@ export default function FamilyPage() {
   }, [])
 
   const handleAddMember = () => {
-    if (newMember.name && newMember.email) {
-      const member: FamilyMember = {
-        id: Date.now().toString(),
-        name: newMember.name,
-        email: newMember.email,
-        role: newMember.role as "admin" | "member",
-        joinedDate: new Date().toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        }),
-        spendingLimit: newMember.spendingLimit ? Number.parseFloat(newMember.spendingLimit) : 0,
-      }
-      setMembers([...members, member])
-      setNewMember({ name: "", email: "", role: "member", spendingLimit: "" })
-      setIsAddMemberOpen(false)
-      // If we have a real familyId, call backend to add member
-      if (familyId) {
-        fetch('/api/families/add-member', {
+    // Validate form data with Zod
+    const result = addMemberSchema.safeParse(newMember)
+    if (!result.success) {
+      const errors: Partial<Record<keyof AddMemberFormData, string>> = {}
+      result.error.errors.forEach((error) => {
+        const path = error.path[0] as keyof AddMemberFormData
+        errors[path] = error.message
+      })
+      setNewMemberErrors(errors)
+      return
+    }
+
+    if (!familyId) {
+      toast({ title: 'Create a family first', description: 'Please create a family before adding members', variant: 'destructive' })
+      return
+    }
+
+    // Call backend to add member
+    ;(async () => {
+      try {
+        const res = await fetch('/api/families/add-member', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ familyId, email: newMember.email, role: newMember.role, monthlyLimit: newMember.spendingLimit ? Number(newMember.spendingLimit) : 0 }),
-        }).then(async (r) => {
-          if (!r.ok) {
-            const err = await r.json()
-            toast({ title: 'Failed to add member', description: err?.error || 'Failed to add member', variant: 'destructive' })
-          }
+          body: JSON.stringify({ familyId, email: newMember.email, role: newMember.role, monthlyLimit: newMember.spendingLimit || 0 }),
         })
+        const data = await res.json()
+        if (res.ok) {
+          setNewMember({ name: "", email: "", role: "member", spendingLimit: 0 })
+          setNewMemberErrors({})
+          setIsAddMemberOpen(false)
+          toast({ title: 'Member added', description: 'Family member added successfully', variant: 'default' })
+        } else {
+          toast({ title: 'Failed to add member', description: data.error || 'Failed to add member', variant: 'destructive' })
+        }
+      } catch (err) {
+        toast({ title: 'Error', description: 'An unexpected error occurred', variant: 'destructive' })
       }
-    }
+    })()
   }
 
   const handleRemoveMember = (id: string) => {
@@ -125,9 +135,21 @@ export default function FamilyPage() {
   }
 
   const handleSaveSettings = () => {
+    // Validate form data with Zod
+    const result = familySettingsSchema.safeParse(editingSettings)
+    if (!result.success) {
+      const errors: Partial<Record<keyof FamilySettingsFormData, string>> = {}
+      result.error.errors.forEach((error) => {
+        const path = error.path[0] as keyof FamilySettingsFormData
+        errors[path] = error.message
+      })
+      setSettingsErrors(errors)
+      return
+    }
+
     setSettings(editingSettings)
-    setIsSettingsOpen(false)
-    // create family on backend if not exists
+    
+    // create family on backend
     ;(async () => {
       try {
         const res = await fetch('/api/families', {
@@ -136,9 +158,16 @@ export default function FamilyPage() {
           body: JSON.stringify({ name: editingSettings.familyName, description: '', currency: editingSettings.currency, monthlyBudget: editingSettings.monthlyBudget }),
         })
         const data = await res.json()
-        if (res.ok) setFamilyId(data.family.id)
+        if (res.ok) {
+          setFamilyId(data.family.id)
+          setSettingsErrors({})
+          setIsSettingsOpen(false)
+          toast({ title: 'Family created', description: 'Family settings saved successfully', variant: 'default' })
+        } else {
+          toast({ title: 'Failed to save settings', description: data.error || 'Failed to save settings', variant: 'destructive' })
+        }
       } catch (e) {
-        toast({ title: 'Failed to create family', description: 'Could not create family', variant: 'destructive' })
+        toast({ title: 'Error', description: 'An unexpected error occurred', variant: 'destructive' })
       }
     })()
   }
@@ -173,26 +202,30 @@ export default function FamilyPage() {
                     <Input
                       id="familyName"
                       value={editingSettings.familyName}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setEditingSettings((prev) => ({
                           ...prev,
                           familyName: e.target.value,
                         }))
-                      }
+                        if (settingsErrors.familyName) setSettingsErrors({ ...settingsErrors, familyName: undefined })
+                      }}
+                      className={settingsErrors.familyName ? "border-red-500" : ""}
                     />
+                    {settingsErrors.familyName && <p className="text-sm text-red-500">{settingsErrors.familyName}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="currency">Currency</Label>
                     <Select
                       value={editingSettings.currency}
-                      onValueChange={(value) =>
+                      onValueChange={(value) => {
                         setEditingSettings((prev) => ({
                           ...prev,
                           currency: value,
                         }))
-                      }
+                        if (settingsErrors.currency) setSettingsErrors({ ...settingsErrors, currency: undefined })
+                      }}
                     >
-                      <SelectTrigger id="currency">
+                      <SelectTrigger id="currency" className={settingsErrors.currency ? "border-red-500" : ""}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -202,6 +235,7 @@ export default function FamilyPage() {
                         <SelectItem value="CAD">CAD ($)</SelectItem>
                       </SelectContent>
                     </Select>
+                    {settingsErrors.currency && <p className="text-sm text-red-500">{settingsErrors.currency}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="monthlyBudget">Monthly Budget</Label>
@@ -209,13 +243,16 @@ export default function FamilyPage() {
                       id="monthlyBudget"
                       type="number"
                       value={editingSettings.monthlyBudget}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setEditingSettings((prev) => ({
                           ...prev,
                           monthlyBudget: Number.parseFloat(e.target.value),
                         }))
-                      }
+                        if (settingsErrors.monthlyBudget) setSettingsErrors({ ...settingsErrors, monthlyBudget: undefined })
+                      }}
+                      className={settingsErrors.monthlyBudget ? "border-red-500" : ""}
                     />
+                    {settingsErrors.monthlyBudget && <p className="text-sm text-red-500">{settingsErrors.monthlyBudget}</p>}
                   </div>
                   <Button onClick={handleSaveSettings} className="w-full bg-primary hover:bg-primary/90">
                     Save Settings
@@ -242,13 +279,16 @@ export default function FamilyPage() {
                       id="name"
                       placeholder="Enter full name"
                       value={newMember.name}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setNewMember((prev) => ({
                           ...prev,
                           name: e.target.value,
                         }))
-                      }
+                        if (newMemberErrors.name) setNewMemberErrors({ ...newMemberErrors, name: undefined })
+                      }}
+                      className={newMemberErrors.name ? "border-red-500" : ""}
                     />
+                    {newMemberErrors.name && <p className="text-sm text-red-500">{newMemberErrors.name}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
@@ -257,26 +297,30 @@ export default function FamilyPage() {
                       type="email"
                       placeholder="Enter email"
                       value={newMember.email}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setNewMember((prev) => ({
                           ...prev,
                           email: e.target.value,
                         }))
-                      }
+                        if (newMemberErrors.email) setNewMemberErrors({ ...newMemberErrors, email: undefined })
+                      }}
+                      className={newMemberErrors.email ? "border-red-500" : ""}
                     />
+                    {newMemberErrors.email && <p className="text-sm text-red-500">{newMemberErrors.email}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="role">Role</Label>
                     <Select
                       value={newMember.role}
-                      onValueChange={(value) =>
+                      onValueChange={(value) => {
                         setNewMember((prev) => ({
                           ...prev,
-                          role: value,
+                          role: value as "admin" | "member",
                         }))
-                      }
+                        if (newMemberErrors.role) setNewMemberErrors({ ...newMemberErrors, role: undefined })
+                      }}
                     >
-                      <SelectTrigger id="role">
+                      <SelectTrigger id="role" className={newMemberErrors.role ? "border-red-500" : ""}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -284,6 +328,7 @@ export default function FamilyPage() {
                         <SelectItem value="member">Member</SelectItem>
                       </SelectContent>
                     </Select>
+                    {newMemberErrors.role && <p className="text-sm text-red-500">{newMemberErrors.role}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="spendingLimit">Monthly Spending Limit (Optional)</Label>
@@ -291,14 +336,17 @@ export default function FamilyPage() {
                       id="spendingLimit"
                       type="number"
                       placeholder="Leave empty for no limit"
-                      value={newMember.spendingLimit}
-                      onChange={(e) =>
+                      value={newMember.spendingLimit || ""}
+                      onChange={(e) => {
                         setNewMember((prev) => ({
                           ...prev,
-                          spendingLimit: e.target.value,
+                          spendingLimit: e.target.value ? Number(e.target.value) : 0,
                         }))
-                      }
+                        if (newMemberErrors.spendingLimit) setNewMemberErrors({ ...newMemberErrors, spendingLimit: undefined })
+                      }}
+                      className={newMemberErrors.spendingLimit ? "border-red-500" : ""}
                     />
+                    {newMemberErrors.spendingLimit && <p className="text-sm text-red-500">{newMemberErrors.spendingLimit}</p>}
                   </div>
                   <Button onClick={handleAddMember} className="w-full bg-primary hover:bg-primary/90">
                     Add Member
