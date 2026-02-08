@@ -125,71 +125,63 @@ export default function FamilyPage() {
     })();
   }, [user]);
 
-  const handleAddMember = () => {
+  const handleAddMember = async () => {
     // Validate form data with Zod
     const result = addMemberSchema.safeParse(newMember);
     if (!result.success) {
       const errors: Partial<Record<keyof AddMemberFormData, string>> = {};
+
       result.error.errors.forEach((error) => {
         const path = error.path[0] as keyof AddMemberFormData;
         errors[path] = error.message;
       });
+
       setNewMemberErrors(errors);
       return;
     }
 
     if (!familyId) {
-      toast({
-        title: "Create a family first",
-        description: "Please create a family before adding members",
-        variant: "destructive",
-      });
+      alert("Please create a family before adding members");
       return;
     }
 
-    // Call backend to add member
-    (async () => {
-      console.log('adding family member')
-      try {
-        const res = await fetch("/api/families/add-member", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            familyId,
-            name: newMember.name,
-            email: newMember.email,
-            password: newMember.password,
-            role: newMember.role,
-            monthlyLimit: newMember.spendingLimit || 0,
-          }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setNewMember({
-            name: "",
-            email: "",
-            password: "",
-            role: "member",
-            spendingLimit: 0,
-          });
-          setNewMemberErrors({});
-          setIsAddMemberOpen(false);
-          toast({
-            title: "Member added",
-            description: "Family member added successfully",
-            variant: "default",
-          });
-        } else {
-          console.error("Failed to add family member:");
-          const errorMessage = "Failed to add family member:";
-          alert(errorMessage);
-        }
-      } catch (err) {
-        console.error("Failed to add family member:", err);
-        const errorMessage = "Failed to add family member:";
-        alert(errorMessage);
+    try {
+      const res = await fetch("/api/families/add-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          familyId,
+          name: newMember.name,
+          email: newMember.email,
+          password: newMember.password,
+          role: newMember.role,
+          monthlyLimit: newMember.spendingLimit || 0,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Failed to add family member");
+        return;
       }
-    })();
+
+      // Success
+      setNewMember({
+        name: "",
+        email: "",
+        password: "",
+        role: "member",
+        spendingLimit: 0,
+      });
+      setNewMemberErrors({});
+      setIsAddMemberOpen(false);
+
+      alert("Family member added successfully");
+    } catch (err) {
+      console.error("Failed to add family member:", err);
+      alert("Failed to add family member");
+    }
   };
 
   const handleRemoveMember = (id: string) => {
@@ -210,59 +202,52 @@ export default function FamilyPage() {
     );
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     // Validate form data with Zod
     const result = familySettingsSchema.safeParse(editingSettings);
     if (!result.success) {
       const errors: Partial<Record<keyof FamilySettingsFormData, string>> = {};
+
       result.error.errors.forEach((error) => {
         const path = error.path[0] as keyof FamilySettingsFormData;
         errors[path] = error.message;
       });
+
       setSettingsErrors(errors);
       return;
     }
 
     setSettings(editingSettings);
 
-    // create family on backend
-    (async () => {
-      try {
-        const res = await fetch("/api/families", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: editingSettings.familyName,
-            description: "",
-            currency: editingSettings.currency,
-            monthlyBudget: editingSettings.monthlyBudget,
-          }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setFamilyId(data.family.id);
-          setSettingsErrors({});
-          setIsSettingsOpen(false);
-          toast({
-            title: "Family created",
-            description: "Family settings saved successfully",
-            variant: "default",
-          });
-        } else {
-          toast({
-            title: "Failed to save settings",
-            description: data.error || "Failed to save settings",
-            variant: "destructive",
-          });
-        }
-      } catch (e) {
-        toast({
-          title: "Error",
-          description: "An unexpected error occurred",
-          variant: "destructive",
-        });
+    try {
+      const res = await fetch("/api/families", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editingSettings.familyName,
+          description: "",
+          currency: editingSettings.currency,
+          monthlyBudget: editingSettings.monthlyBudget,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Failed to save settings");
+        return;
       }
-    })();
+
+      // Success
+      setFamilyId(data.family.id);
+      setSettingsErrors({});
+      setIsSettingsOpen(false);
+
+      alert("Family settings saved successfully");
+    } catch (e) {
+      console.error(e);
+      alert("An unexpected error occurred");
+    }
   };
 
   return (
