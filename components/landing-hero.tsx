@@ -16,13 +16,13 @@ export function LandingHero() {
           for everyone.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/register">
+          <Link href="/auth/register">
             <Button size="lg" className="bg-primary hover:bg-primary/90">
               Start Free Today
               <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
           </Link>
-          <Link href="/login">
+          <Link href="/auth/login">
             <Button size="lg" variant="outline">
               Already have an account?
             </Button>

@@ -15,12 +15,12 @@ export function LandingHeader() {
             <span className="text-xl font-bold text-foreground">FamilyBudget</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/login">
+            <Link href="/auth/login">
               <Button variant="ghost" size="sm">
                 Sign In
               </Button>
             </Link>
-            <Link href="/register">
+            <Link href="/auth/register">
               <Button size="sm" className="bg-primary hover:bg-primary/90">
                 Get Started
               </Button>

@@ -1,18 +1,24 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { useToast } from '@/hooks/use-toast'
-import { useRouter } from 'next/navigation'
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { ArrowLeft } from "lucide-react"
-import { registerSchema, type RegisterFormData } from "@/lib/validations"
-import { ZodError } from "zod"
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft } from "lucide-react";
+import { registerSchema, type RegisterFormData } from "@/lib/validations";
+import { ZodError } from "zod";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState<RegisterFormData>({
@@ -21,74 +27,95 @@ export default function RegisterPage() {
     email: "",
     password: "",
     confirmPassword: "",
-  })
+  });
 
-  const [errors, setErrors] = useState<Partial<Record<keyof RegisterFormData, string>>>({})
-  const [isLoading, setIsLoading] = useState(false)
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof RegisterFormData, string>>
+  >({});
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
+    const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
-    }))
+    }));
     // Clear error for this field when user starts typing
     if (errors[name as keyof RegisterFormData]) {
       setErrors((prev) => ({
         ...prev,
         [name]: undefined,
-      }))
+      }));
     }
-  }
+  };
 
-  const { toast } = useToast()
-  const router = useRouter()
+  const { toast } = useToast();
+  const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
     // Validate form data with Zod
-    const result = registerSchema.safeParse(formData)
+    const result = registerSchema.safeParse(formData);
     if (!result.success) {
-      const newErrors: Partial<Record<keyof RegisterFormData, string>> = {}
+      const newErrors: Partial<Record<keyof RegisterFormData, string>> = {};
       result.error.errors.forEach((error) => {
-        const path = error.path[0] as keyof RegisterFormData
-        newErrors[path] = error.message
-      })
-      setErrors(newErrors)
-      return
+        const path = error.path[0] as keyof RegisterFormData;
+        newErrors[path] = error.message;
+      });
+      setErrors(newErrors);
+      return;
     }
 
-    setIsLoading(true)
-    ;(async () => {
-      try {
-        const res = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: formData.firstName + ' ' + formData.lastName,
-            email: formData.email,
-            password: formData.password,
-          }),
-        })
-        const data = await res.json()
-        setIsLoading(false)
-        if (res.ok) {
-          router.push('/auth/login')
-        } else {
-          toast({ title: 'Registration failed', description: data.error || 'Registration failed', variant: 'destructive' })
-        }
-      } catch (err) {
-        setIsLoading(false)
-        toast({ title: 'Registration error', description: 'An unexpected error occurred', variant: 'destructive' })
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.firstName + " " + formData.lastName,
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        router.push("/auth/login");
+      } else {
+        const errorMessage = data.error || "Registration failed";
+        alert(errorMessage);
+        // toast({
+        //   title: "Registration failed",
+        //   description: errorMessage,
+        //   variant: "destructive",
+        //   duration: 5000,
+        // });
       }
-    })()
-  }
+    } catch (err) {
+      console.error("Registration error:", err);
+      const errorMessage = "An unexpected error occurred";
+      alert(errorMessage);
+      // toast({
+      //   title: "Registration error",
+      //   description: errorMessage,
+      //   variant: "destructive",
+      //   duration: 5000,
+      // });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        <Link href="/" className="inline-flex items-center text-primary hover:text-primary/80 mb-8">
+        <Link
+          href="/"
+          className="inline-flex items-center text-primary hover:text-primary/80 mb-8"
+        >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to home
         </Link>
@@ -96,7 +123,9 @@ export default function RegisterPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Create Account</CardTitle>
-            <CardDescription>Join FamilyBudget to start managing your family finances</CardDescription>
+            <CardDescription>
+              Join FamilyBudget to start managing your family finances
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -175,18 +204,29 @@ export default function RegisterPage() {
                   className={errors.confirmPassword ? "border-red-500" : ""}
                 />
                 {errors.confirmPassword && (
-                  <p className="text-sm text-red-500">{errors.confirmPassword}</p>
+                  <p className="text-sm text-red-500">
+                    {errors.confirmPassword}
+                  </p>
                 )}
               </div>
 
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full bg-primary hover:bg-primary/90"
+                disabled={isLoading}
+              >
                 {isLoading ? "Creating account..." : "Create Account"}
               </Button>
             </form>
 
             <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Already have an account? </span>
-              <Link href="/auth/login" className="text-primary hover:text-primary/80 font-medium">
+              <span className="text-muted-foreground">
+                Already have an account?{" "}
+              </span>
+              <Link
+                href="/auth/login"
+                className="text-primary hover:text-primary/80 font-medium"
+              >
                 Sign In
               </Link>
             </div>
@@ -194,5 +234,5 @@ export default function RegisterPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }
