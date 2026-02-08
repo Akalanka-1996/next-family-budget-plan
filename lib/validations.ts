@@ -23,7 +23,7 @@ export const expenseSchema = z.object({
   amount: z.number().min(0.01, "Amount must be greater than 0"),
   description: z.string().min(1, "Description is required"),
   date: z.string().min(1, "Date is required"),
-  member: z.string().min(1, "Member is required"),
+  member: z.string().optional().default(""),
 });
 
 export const incomeSchema = z.object({
@@ -42,6 +42,7 @@ export const familySettingsSchema = z.object({
 export const addMemberSchema = z.object({
   name: z.string().min(1, "Member name is required"),
   email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["admin", "member"]).default("member"),
   spendingLimit: z.number().min(0, "Spending limit must be 0 or greater").optional().default(0),
 });

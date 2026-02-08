@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
+import { useUser } from "@/lib/user-context"
 
 interface NavItem {
   label: string
@@ -31,30 +32,19 @@ const navItems: NavItem[] = [
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [userName, setUserName] = useState<string | null>(null)
-  const [userInitials, setUserInitials] = useState<string>("JD")
   const pathname = usePathname()
+  const { user, logout } = useUser()
+
+  const userInitials = user?.name
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : 'JD'
 
   const isActive = (href: string) => pathname === href
-
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const r = await fetch('/api/auth/me')
-        if (!r.ok) return
-        const d = await r.json()
-        const name = d.user?.name || d.user?.email || null
-        setUserName(name)
-        if (name) {
-          const parts = name.split(' ')
-          const initials = parts.map((p: string) => p[0]).slice(0, 2).join('').toUpperCase()
-          setUserInitials(initials)
-        }
-      } catch (e) {
-        // ignore
-      }
-    })()
-  }, [])
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -109,7 +99,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem disabled>
-                    <span className="text-sm">{userName ?? 'Account'}</span>
+                    <span className="text-sm">{user?.name ?? user?.email ?? 'Account'}</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
@@ -119,7 +109,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive focus:text-destructive">
+                  <DropdownMenuItem
+                    onClick={logout}
+                    className="text-destructive focus:text-destructive cursor-pointer"
+                  >
                     <LogOut className="w-4 h-4 mr-2" />
                     Sign Out
                   </DropdownMenuItem>

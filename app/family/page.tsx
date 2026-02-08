@@ -1,12 +1,19 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useToast } from '@/hooks/use-toast'
-import { DashboardLayout } from "@/components/dashboard-layout"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/lib/user-context";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -14,163 +21,249 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { UserPlus, Mail, Calendar, Trash2, DollarSign, Settings2 } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { addMemberSchema, familySettingsSchema, type AddMemberFormData, type FamilySettingsFormData } from "@/lib/validations"
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  UserPlus,
+  Mail,
+  Calendar,
+  Trash2,
+  DollarSign,
+  Settings2,
+} from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  addMemberSchema,
+  familySettingsSchema,
+  type AddMemberFormData,
+  type FamilySettingsFormData,
+} from "@/lib/validations";
 
 interface FamilyMember {
-  id: string
-  name: string
-  email: string
-  role: "admin" | "member"
-  joinedDate: string
-  spendingLimit: number
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "member";
+  joinedDate: string;
+  spendingLimit: number;
 }
 
 interface FamilySettings {
-  familyName: string
-  currency: string
-  monthlyBudget: number
+  familyName: string;
+  currency: string;
+  monthlyBudget: number;
 }
 
 const defaultSettings: FamilySettings = {
   familyName: "",
   currency: "USD",
   monthlyBudget: 0,
-}
+};
 
 export default function FamilyPage() {
-  const [members, setMembers] = useState<FamilyMember[]>([])
-  const [settings, setSettings] = useState<FamilySettings>(defaultSettings)
-  const [familyId, setFamilyId] = useState<string | null>(null)
-  const [newMember, setNewMember] = useState<AddMemberFormData>({ name: "", email: "", role: "member", spendingLimit: 0 })
-  const [newMemberErrors, setNewMemberErrors] = useState<Partial<Record<keyof AddMemberFormData, string>>>({})
-  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [editingSettings, setEditingSettings] = useState<FamilySettings>(settings)
-  const [settingsErrors, setSettingsErrors] = useState<Partial<Record<keyof FamilySettingsFormData, string>>>({})
-  const { toast } = useToast()
+  const [members, setMembers] = useState<FamilyMember[]>([]);
+  const [settings, setSettings] = useState<FamilySettings>(defaultSettings);
+  const [familyId, setFamilyId] = useState<string | null>(null);
+  const [newMember, setNewMember] = useState<AddMemberFormData>({
+    name: "",
+    email: "",
+    password: "",
+    role: "member",
+    spendingLimit: 0,
+  });
+  const [newMemberErrors, setNewMemberErrors] = useState<
+    Partial<Record<keyof AddMemberFormData, string>>
+  >({});
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [editingSettings, setEditingSettings] =
+    useState<FamilySettings>(settings);
+  const [settingsErrors, setSettingsErrors] = useState<
+    Partial<Record<keyof FamilySettingsFormData, string>>
+  >({});
+  const { toast } = useToast();
+  const { user } = useUser();
 
   useEffect(() => {
-    ;(async () => {
+    if (!user) return;
+    (async () => {
       try {
-        const r = await fetch('/api/families')
-        if (!r.ok) return
-        const d = await r.json()
-        const fams = d.families || []
+        const r = await fetch("/api/families");
+        if (!r.ok) return;
+        const d = await r.json();
+        const fams = d.families || [];
         if (fams[0]) {
-          const fam = fams[0]
-          setFamilyId(fam.id)
-          setSettings({ familyName: fam.name || '', currency: fam.currency || 'USD', monthlyBudget: Number(fam.monthlyBudget || 0) })
+          const fam = fams[0];
+          setFamilyId(fam.id);
+          setSettings({
+            familyName: fam.name || "",
+            currency: fam.currency || "USD",
+            monthlyBudget: Number(fam.monthlyBudget || 0),
+          });
           const mapped = (fam.members || []).map((m: any) => ({
             id: m.id,
-            name: (m.user && (m.user.name || m.user.email)) || 'Member',
-            email: m.user?.email || '',
-            role: m.role === 'admin' ? 'admin' : 'member',
-            joinedDate: m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : new Date().toLocaleDateString(),
+            name: (m.user && (m.user.name || m.user.email)) || "Member",
+            email: m.user?.email || "",
+            role: m.role === "admin" ? "admin" : "member",
+            joinedDate: m.joinedAt
+              ? new Date(m.joinedAt).toLocaleDateString()
+              : new Date().toLocaleDateString(),
             spendingLimit: Number(m.monthlyLimit || 0),
-          }))
-          setMembers(mapped)
+          }));
+          setMembers(mapped);
         }
       } catch (e) {
         // ignore
       }
-    })()
-  }, [])
+    })();
+  }, [user]);
 
   const handleAddMember = () => {
     // Validate form data with Zod
-    const result = addMemberSchema.safeParse(newMember)
+    const result = addMemberSchema.safeParse(newMember);
     if (!result.success) {
-      const errors: Partial<Record<keyof AddMemberFormData, string>> = {}
+      const errors: Partial<Record<keyof AddMemberFormData, string>> = {};
       result.error.errors.forEach((error) => {
-        const path = error.path[0] as keyof AddMemberFormData
-        errors[path] = error.message
-      })
-      setNewMemberErrors(errors)
-      return
+        const path = error.path[0] as keyof AddMemberFormData;
+        errors[path] = error.message;
+      });
+      setNewMemberErrors(errors);
+      return;
     }
 
     if (!familyId) {
-      toast({ title: 'Create a family first', description: 'Please create a family before adding members', variant: 'destructive' })
-      return
+      toast({
+        title: "Create a family first",
+        description: "Please create a family before adding members",
+        variant: "destructive",
+      });
+      return;
     }
 
     // Call backend to add member
-    ;(async () => {
+    (async () => {
+      console.log('adding family member')
       try {
-        const res = await fetch('/api/families/add-member', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ familyId, email: newMember.email, role: newMember.role, monthlyLimit: newMember.spendingLimit || 0 }),
-        })
-        const data = await res.json()
+        const res = await fetch("/api/families/add-member", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            familyId,
+            name: newMember.name,
+            email: newMember.email,
+            password: newMember.password,
+            role: newMember.role,
+            monthlyLimit: newMember.spendingLimit || 0,
+          }),
+        });
+        const data = await res.json();
         if (res.ok) {
-          setNewMember({ name: "", email: "", role: "member", spendingLimit: 0 })
-          setNewMemberErrors({})
-          setIsAddMemberOpen(false)
-          toast({ title: 'Member added', description: 'Family member added successfully', variant: 'default' })
+          setNewMember({
+            name: "",
+            email: "",
+            password: "",
+            role: "member",
+            spendingLimit: 0,
+          });
+          setNewMemberErrors({});
+          setIsAddMemberOpen(false);
+          toast({
+            title: "Member added",
+            description: "Family member added successfully",
+            variant: "default",
+          });
         } else {
-          toast({ title: 'Failed to add member', description: data.error || 'Failed to add member', variant: 'destructive' })
+          console.error("Failed to add family member:");
+          const errorMessage = "Failed to add family member:";
+          alert(errorMessage);
         }
       } catch (err) {
-        toast({ title: 'Error', description: 'An unexpected error occurred', variant: 'destructive' })
+        console.error("Failed to add family member:", err);
+        const errorMessage = "Failed to add family member:";
+        alert(errorMessage);
       }
-    })()
-  }
+    })();
+  };
 
   const handleRemoveMember = (id: string) => {
-    setMembers(members.filter((m) => m.id !== id))
-  }
+    setMembers(members.filter((m) => m.id !== id));
+  };
 
   const handleRoleChange = (memberId: string, newRole: "admin" | "member") => {
-    setMembers(members.map((m) => (m.id === memberId ? { ...m, role: newRole } : m)))
-  }
+    setMembers(
+      members.map((m) => (m.id === memberId ? { ...m, role: newRole } : m)),
+    );
+  };
 
   const handleSpendingLimitChange = (memberId: string, limit: number) => {
-    setMembers(members.map((m) => (m.id === memberId ? { ...m, spendingLimit: limit } : m)))
-  }
+    setMembers(
+      members.map((m) =>
+        m.id === memberId ? { ...m, spendingLimit: limit } : m,
+      ),
+    );
+  };
 
   const handleSaveSettings = () => {
     // Validate form data with Zod
-    const result = familySettingsSchema.safeParse(editingSettings)
+    const result = familySettingsSchema.safeParse(editingSettings);
     if (!result.success) {
-      const errors: Partial<Record<keyof FamilySettingsFormData, string>> = {}
+      const errors: Partial<Record<keyof FamilySettingsFormData, string>> = {};
       result.error.errors.forEach((error) => {
-        const path = error.path[0] as keyof FamilySettingsFormData
-        errors[path] = error.message
-      })
-      setSettingsErrors(errors)
-      return
+        const path = error.path[0] as keyof FamilySettingsFormData;
+        errors[path] = error.message;
+      });
+      setSettingsErrors(errors);
+      return;
     }
 
-    setSettings(editingSettings)
-    
+    setSettings(editingSettings);
+
     // create family on backend
-    ;(async () => {
+    (async () => {
       try {
-        const res = await fetch('/api/families', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: editingSettings.familyName, description: '', currency: editingSettings.currency, monthlyBudget: editingSettings.monthlyBudget }),
-        })
-        const data = await res.json()
+        const res = await fetch("/api/families", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: editingSettings.familyName,
+            description: "",
+            currency: editingSettings.currency,
+            monthlyBudget: editingSettings.monthlyBudget,
+          }),
+        });
+        const data = await res.json();
         if (res.ok) {
-          setFamilyId(data.family.id)
-          setSettingsErrors({})
-          setIsSettingsOpen(false)
-          toast({ title: 'Family created', description: 'Family settings saved successfully', variant: 'default' })
+          setFamilyId(data.family.id);
+          setSettingsErrors({});
+          setIsSettingsOpen(false);
+          toast({
+            title: "Family created",
+            description: "Family settings saved successfully",
+            variant: "default",
+          });
         } else {
-          toast({ title: 'Failed to save settings', description: data.error || 'Failed to save settings', variant: 'destructive' })
+          toast({
+            title: "Failed to save settings",
+            description: data.error || "Failed to save settings",
+            variant: "destructive",
+          });
         }
       } catch (e) {
-        toast({ title: 'Error', description: 'An unexpected error occurred', variant: 'destructive' })
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred",
+          variant: "destructive",
+        });
       }
-    })()
-  }
+    })();
+  };
 
   return (
     <DashboardLayout>
@@ -178,7 +271,9 @@ export default function FamilyPage() {
         {/* Header Section */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Family Management</h1>
+            <h1 className="text-3xl font-bold text-foreground">
+              Family Management
+            </h1>
             <p className="text-muted-foreground">
               {settings.familyName} • {members.length} members
             </p>
@@ -194,7 +289,9 @@ export default function FamilyPage() {
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Family Settings</DialogTitle>
-                  <DialogDescription>Configure your family budget settings</DialogDescription>
+                  <DialogDescription>
+                    Configure your family budget settings
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -206,12 +303,22 @@ export default function FamilyPage() {
                         setEditingSettings((prev) => ({
                           ...prev,
                           familyName: e.target.value,
-                        }))
-                        if (settingsErrors.familyName) setSettingsErrors({ ...settingsErrors, familyName: undefined })
+                        }));
+                        if (settingsErrors.familyName)
+                          setSettingsErrors({
+                            ...settingsErrors,
+                            familyName: undefined,
+                          });
                       }}
-                      className={settingsErrors.familyName ? "border-red-500" : ""}
+                      className={
+                        settingsErrors.familyName ? "border-red-500" : ""
+                      }
                     />
-                    {settingsErrors.familyName && <p className="text-sm text-red-500">{settingsErrors.familyName}</p>}
+                    {settingsErrors.familyName && (
+                      <p className="text-sm text-red-500">
+                        {settingsErrors.familyName}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="currency">Currency</Label>
@@ -221,11 +328,20 @@ export default function FamilyPage() {
                         setEditingSettings((prev) => ({
                           ...prev,
                           currency: value,
-                        }))
-                        if (settingsErrors.currency) setSettingsErrors({ ...settingsErrors, currency: undefined })
+                        }));
+                        if (settingsErrors.currency)
+                          setSettingsErrors({
+                            ...settingsErrors,
+                            currency: undefined,
+                          });
                       }}
                     >
-                      <SelectTrigger id="currency" className={settingsErrors.currency ? "border-red-500" : ""}>
+                      <SelectTrigger
+                        id="currency"
+                        className={
+                          settingsErrors.currency ? "border-red-500" : ""
+                        }
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -235,7 +351,11 @@ export default function FamilyPage() {
                         <SelectItem value="CAD">CAD ($)</SelectItem>
                       </SelectContent>
                     </Select>
-                    {settingsErrors.currency && <p className="text-sm text-red-500">{settingsErrors.currency}</p>}
+                    {settingsErrors.currency && (
+                      <p className="text-sm text-red-500">
+                        {settingsErrors.currency}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="monthlyBudget">Monthly Budget</Label>
@@ -247,14 +367,27 @@ export default function FamilyPage() {
                         setEditingSettings((prev) => ({
                           ...prev,
                           monthlyBudget: Number.parseFloat(e.target.value),
-                        }))
-                        if (settingsErrors.monthlyBudget) setSettingsErrors({ ...settingsErrors, monthlyBudget: undefined })
+                        }));
+                        if (settingsErrors.monthlyBudget)
+                          setSettingsErrors({
+                            ...settingsErrors,
+                            monthlyBudget: undefined,
+                          });
                       }}
-                      className={settingsErrors.monthlyBudget ? "border-red-500" : ""}
+                      className={
+                        settingsErrors.monthlyBudget ? "border-red-500" : ""
+                      }
                     />
-                    {settingsErrors.monthlyBudget && <p className="text-sm text-red-500">{settingsErrors.monthlyBudget}</p>}
+                    {settingsErrors.monthlyBudget && (
+                      <p className="text-sm text-red-500">
+                        {settingsErrors.monthlyBudget}
+                      </p>
+                    )}
                   </div>
-                  <Button onClick={handleSaveSettings} className="w-full bg-primary hover:bg-primary/90">
+                  <Button
+                    onClick={handleSaveSettings}
+                    className="w-full bg-primary hover:bg-primary/90"
+                  >
                     Save Settings
                   </Button>
                 </div>
@@ -270,7 +403,9 @@ export default function FamilyPage() {
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Add Family Member</DialogTitle>
-                  <DialogDescription>Add a new member to your family budget</DialogDescription>
+                  <DialogDescription>
+                    Add a new member to your family budget
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -283,12 +418,20 @@ export default function FamilyPage() {
                         setNewMember((prev) => ({
                           ...prev,
                           name: e.target.value,
-                        }))
-                        if (newMemberErrors.name) setNewMemberErrors({ ...newMemberErrors, name: undefined })
+                        }));
+                        if (newMemberErrors.name)
+                          setNewMemberErrors({
+                            ...newMemberErrors,
+                            name: undefined,
+                          });
                       }}
                       className={newMemberErrors.name ? "border-red-500" : ""}
                     />
-                    {newMemberErrors.name && <p className="text-sm text-red-500">{newMemberErrors.name}</p>}
+                    {newMemberErrors.name && (
+                      <p className="text-sm text-red-500">
+                        {newMemberErrors.name}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
@@ -301,12 +444,48 @@ export default function FamilyPage() {
                         setNewMember((prev) => ({
                           ...prev,
                           email: e.target.value,
-                        }))
-                        if (newMemberErrors.email) setNewMemberErrors({ ...newMemberErrors, email: undefined })
+                        }));
+                        if (newMemberErrors.email)
+                          setNewMemberErrors({
+                            ...newMemberErrors,
+                            email: undefined,
+                          });
                       }}
                       className={newMemberErrors.email ? "border-red-500" : ""}
                     />
-                    {newMemberErrors.email && <p className="text-sm text-red-500">{newMemberErrors.email}</p>}
+                    {newMemberErrors.email && (
+                      <p className="text-sm text-red-500">
+                        {newMemberErrors.email}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Enter password (min 6 characters)"
+                      value={newMember.password || ""}
+                      onChange={(e) => {
+                        setNewMember((prev) => ({
+                          ...prev,
+                          password: e.target.value,
+                        }));
+                        if (newMemberErrors.password)
+                          setNewMemberErrors({
+                            ...newMemberErrors,
+                            password: undefined,
+                          });
+                      }}
+                      className={
+                        newMemberErrors.password ? "border-red-500" : ""
+                      }
+                    />
+                    {newMemberErrors.password && (
+                      <p className="text-sm text-red-500">
+                        {newMemberErrors.password}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="role">Role</Label>
@@ -316,11 +495,18 @@ export default function FamilyPage() {
                         setNewMember((prev) => ({
                           ...prev,
                           role: value as "admin" | "member",
-                        }))
-                        if (newMemberErrors.role) setNewMemberErrors({ ...newMemberErrors, role: undefined })
+                        }));
+                        if (newMemberErrors.role)
+                          setNewMemberErrors({
+                            ...newMemberErrors,
+                            role: undefined,
+                          });
                       }}
                     >
-                      <SelectTrigger id="role" className={newMemberErrors.role ? "border-red-500" : ""}>
+                      <SelectTrigger
+                        id="role"
+                        className={newMemberErrors.role ? "border-red-500" : ""}
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -328,10 +514,16 @@ export default function FamilyPage() {
                         <SelectItem value="member">Member</SelectItem>
                       </SelectContent>
                     </Select>
-                    {newMemberErrors.role && <p className="text-sm text-red-500">{newMemberErrors.role}</p>}
+                    {newMemberErrors.role && (
+                      <p className="text-sm text-red-500">
+                        {newMemberErrors.role}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="spendingLimit">Monthly Spending Limit (Optional)</Label>
+                    <Label htmlFor="spendingLimit">
+                      Monthly Spending Limit (Optional)
+                    </Label>
                     <Input
                       id="spendingLimit"
                       type="number"
@@ -340,15 +532,30 @@ export default function FamilyPage() {
                       onChange={(e) => {
                         setNewMember((prev) => ({
                           ...prev,
-                          spendingLimit: e.target.value ? Number(e.target.value) : 0,
-                        }))
-                        if (newMemberErrors.spendingLimit) setNewMemberErrors({ ...newMemberErrors, spendingLimit: undefined })
+                          spendingLimit: e.target.value
+                            ? Number(e.target.value)
+                            : 0,
+                        }));
+                        if (newMemberErrors.spendingLimit)
+                          setNewMemberErrors({
+                            ...newMemberErrors,
+                            spendingLimit: undefined,
+                          });
                       }}
-                      className={newMemberErrors.spendingLimit ? "border-red-500" : ""}
+                      className={
+                        newMemberErrors.spendingLimit ? "border-red-500" : ""
+                      }
                     />
-                    {newMemberErrors.spendingLimit && <p className="text-sm text-red-500">{newMemberErrors.spendingLimit}</p>}
+                    {newMemberErrors.spendingLimit && (
+                      <p className="text-sm text-red-500">
+                        {newMemberErrors.spendingLimit}
+                      </p>
+                    )}
                   </div>
-                  <Button onClick={handleAddMember} className="w-full bg-primary hover:bg-primary/90">
+                  <Button
+                    onClick={handleAddMember}
+                    className="w-full bg-primary hover:bg-primary/90"
+                  >
                     Add Member
                   </Button>
                 </div>
@@ -368,7 +575,9 @@ export default function FamilyPage() {
             {members.length === 0 ? (
               <Card>
                 <CardContent className="pt-6 text-center">
-                  <p className="text-muted-foreground">No family members yet. Add your first member to get started.</p>
+                  <p className="text-muted-foreground">
+                    No family members yet. Add your first member to get started.
+                  </p>
                 </CardContent>
               </Card>
             ) : (
@@ -406,7 +615,8 @@ export default function FamilyPage() {
                             {member.spendingLimit > 0 && (
                               <div className="flex items-center text-sm text-accent mt-2 gap-1">
                                 <DollarSign className="w-4 h-4" />
-                                Monthly limit: {settings.currency} {member.spendingLimit.toFixed(2)}
+                                Monthly limit: {settings.currency}{" "}
+                                {member.spendingLimit.toFixed(2)}
                               </div>
                             )}
                           </div>
@@ -435,21 +645,29 @@ export default function FamilyPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm font-medium">Monthly Budget</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    Monthly Budget
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-primary">
                     {settings.currency} {settings.monthlyBudget.toFixed(2)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">Total family monthly budget</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Total family monthly budget
+                  </p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm font-medium">Family Members</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    Family Members
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-accent">{members.length}</div>
+                  <div className="text-3xl font-bold text-accent">
+                    {members.length}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     {members.filter((m) => m.role === "admin").length} admin(s)
                   </p>
@@ -459,22 +677,31 @@ export default function FamilyPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Member Spending Limits</CardTitle>
-                <CardDescription>Monthly spending allocations for each member</CardDescription>
+                <CardDescription>
+                  Monthly spending allocations for each member
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {members
                     .filter((m) => m.spendingLimit > 0)
                     .map((member) => (
-                      <div key={member.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                        <span className="font-medium text-sm">{member.name}</span>
+                      <div
+                        key={member.id}
+                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                      >
+                        <span className="font-medium text-sm">
+                          {member.name}
+                        </span>
                         <span className="text-sm font-semibold text-accent">
                           {settings.currency} {member.spendingLimit.toFixed(2)}
                         </span>
                       </div>
                     ))}
                   {members.filter((m) => m.spendingLimit > 0).length === 0 && (
-                    <p className="text-sm text-muted-foreground">No spending limits set yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      No spending limits set yet
+                    </p>
                   )}
                 </div>
               </CardContent>
@@ -483,5 +710,5 @@ export default function FamilyPage() {
         </Tabs>
       </div>
     </DashboardLayout>
-  )
+  );
 }

@@ -5,6 +5,7 @@ import type React from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/lib/user-context";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ export default function LoginPage() {
 
   const router = useRouter();
   const { toast } = useToast();
+  const { setUserData } = useUser();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -50,61 +52,53 @@ export default function LoginPage() {
     }
   };
 
- const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  // Validate form data with Zod
-  const result = loginSchema.safeParse(formData);
-  if (!result.success) {
-    const newErrors: Partial<Record<keyof LoginFormData, string>> = {};
-    result.error.errors.forEach((error) => {
-      const path = error.path[0] as keyof LoginFormData;
-      newErrors[path] = error.message;
-    });
-    setErrors(newErrors);
-    return;
-  }
+    // Validate form data with Zod
+    const result = loginSchema.safeParse(formData);
+    if (!result.success) {
+      const newErrors: Partial<Record<keyof LoginFormData, string>> = {};
 
-  setIsLoading(true);
-  
-  try {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: formData.email,
-        password: formData.password,
-      }),
-    });
-    
-    const data = await res.json();
-    
-    if (res.ok) {
-      router.push("/dashboard");
-    } else {
-      const errorMessage = data.error || "Invalid credentials";
-      alert(errorMessage);
-      ({
-        title: "Login failed",
-        description: errorMessage,
-        variant: "destructive",
-        duration: 5000,
+      result.error.errors.forEach((error) => {
+        const path = error.path[0] as keyof LoginFormData;
+        newErrors[path] = error.message;
       });
+
+      setErrors(newErrors);
+      return;
     }
-  } catch (err) {
-    console.error("Login error:", err);
-    const errorMessage = "An unexpected error occurred";
-    alert(errorMessage);
-    // toast({
-    //   title: "Login error",
-    //   description: errorMessage,
-    //   variant: "destructive",
-    //   duration: 5000,
-    // });
-  } finally {
-    setIsLoading(false);
-  }
-};
+
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.user) {
+        setUserData(data.user);
+        router.push("/dashboard");
+        return;
+      }
+
+      // Handle invalid credentials or API error
+      const errorMessage = data.error || "Login failed";
+        alert(errorMessage);
+    } catch (err) {
+      const errorMessage = err || "Login failed";
+        alert(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/50 flex items-center justify-center px-4">
@@ -119,7 +113,7 @@ export default function LoginPage() {
 
         <Card>
           <CardHeader>
-           toast <CardTitle className="text-2xl">Welcome Back</CardTitle>
+            toast <CardTitle className="text-2xl">Welcome Back</CardTitle>
             <CardDescription>
               Sign in to your FamilyBudget account
             </CardDescription>

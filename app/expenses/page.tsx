@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useToast } from '@/hooks/use-toast'
+import { useUser } from '@/lib/user-context'
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -67,6 +68,7 @@ export default function ExpensesPage() {
   const [isLoading, setIsLoading] = useState(false)
 
   const { toast } = useToast()
+  const { user } = useUser()
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((expense) => {
@@ -78,6 +80,7 @@ export default function ExpensesPage() {
   }, [expenses, filterCategory, filterMember, startDate, endDate])
 
   useEffect(() => {
+    if (!user) return // Don't fetch families if user is not loaded
     ;(async () => {
       try {
         const r = await fetch('/api/families')
@@ -95,7 +98,7 @@ export default function ExpensesPage() {
         toast({ title: 'Failed to load families', description: 'Could not fetch your families', variant: 'destructive' })
       }
     })()
-  }, [])
+  }, [user, toast])
 
   useEffect(() => {
     if (!selectedFamilyId) return
@@ -110,21 +113,21 @@ export default function ExpensesPage() {
             amount: Number(e.amount),
             description: e.description,
             date: e.date,
-            member: (members.find((m) => m.id === e.familyMemberId)?.name) || e.familyMemberId,
+            member: (members.find((m) => m.id === e.familyMemberId)?.name) || (user?.name || user?.email || 'Unknown'),
           })))
         }
       } catch (e) {
         toast({ title: 'Failed to load expenses', description: 'Could not fetch expenses for this family', variant: 'destructive' })
       }
     })()
-  }, [selectedFamilyId])
+  }, [selectedFamilyId, members, user, toast])
 
   useEffect(() => {
-    // set default member for new expense when members list changes
-    if (members.length > 0) {
-      setNewExpense((prev) => ({ ...prev, member: members[0].name }))
+    // set default member for new expense to current user
+    if (user) {
+      setNewExpense((prev) => ({ ...prev, member: user.name || user.email || '' }))
     }
-  }, [members])
+  }, [user])
 
   const categoryTotals = useMemo(() => {
     const totals: Record<string, number> = {}
@@ -249,25 +252,9 @@ export default function ExpensesPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="member">Member</Label>
-                  <Select
-                    value={newExpense.member}
-                    onValueChange={(value) => {
-                      setNewExpense((prev) => ({ ...prev, member: value }))
-                      if (errors.member) setErrors({ ...errors, member: undefined })
-                    }}
-                  >
-                    <SelectTrigger className={errors.member ? "border-red-500" : ""}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {members.map((member) => (
-                        <SelectItem key={member.id} value={member.name}>
-                          {member.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.member && <p className="text-sm text-red-500">{errors.member}</p>}
+                  <div className="p-2 bg-muted rounded-md text-sm">
+                    {user?.name || user?.email || 'Loading...'}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
