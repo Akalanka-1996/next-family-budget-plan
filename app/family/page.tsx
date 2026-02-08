@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/lib/user-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -71,6 +70,7 @@ export default function FamilyPage() {
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [settings, setSettings] = useState<FamilySettings>(defaultSettings);
   const [familyId, setFamilyId] = useState<string | null>(null);
+
   const [newMember, setNewMember] = useState<AddMemberFormData>({
     name: "",
     email: "",
@@ -78,64 +78,73 @@ export default function FamilyPage() {
     role: "member",
     spendingLimit: 0,
   });
+
   const [newMemberErrors, setNewMemberErrors] = useState<
     Partial<Record<keyof AddMemberFormData, string>>
   >({});
+
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   const [editingSettings, setEditingSettings] =
     useState<FamilySettings>(settings);
+
   const [settingsErrors, setSettingsErrors] = useState<
     Partial<Record<keyof FamilySettingsFormData, string>>
   >({});
-  const { toast } = useToast();
+
   const { user } = useUser();
+
+  // 🔹 Centralized fetch function
+  const fetchFamilies = async () => {
+    try {
+      const r = await fetch("/api/families");
+      if (!r.ok) return;
+
+      const d = await r.json();
+      const fams = d.families || [];
+
+      if (!fams[0]) return;
+
+      const fam = fams[0];
+
+      setFamilyId(fam.id);
+      setSettings({
+        familyName: fam.name || "",
+        currency: fam.currency || "USD",
+        monthlyBudget: Number(fam.monthlyBudget || 0),
+      });
+
+      const mapped: FamilyMember[] = (fam.members || []).map((m: any) => ({
+        id: m.id,
+        name: (m.user && (m.user.name || m.user.email)) || "Member",
+        email: m.user?.email || "",
+        role: m.role === "admin" ? "admin" : "member",
+        joinedDate: m.joinedAt
+          ? new Date(m.joinedAt).toLocaleDateString()
+          : new Date().toLocaleDateString(),
+        spendingLimit: Number(m.monthlyLimit || 0),
+      }));
+
+      setMembers(mapped);
+    } catch (e) {
+      console.error("Failed to fetch families", e);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
-    (async () => {
-      try {
-        const r = await fetch("/api/families");
-        if (!r.ok) return;
-        const d = await r.json();
-        const fams = d.families || [];
-        if (fams[0]) {
-          const fam = fams[0];
-          setFamilyId(fam.id);
-          setSettings({
-            familyName: fam.name || "",
-            currency: fam.currency || "USD",
-            monthlyBudget: Number(fam.monthlyBudget || 0),
-          });
-          const mapped = (fam.members || []).map((m: any) => ({
-            id: m.id,
-            name: (m.user && (m.user.name || m.user.email)) || "Member",
-            email: m.user?.email || "",
-            role: m.role === "admin" ? "admin" : "member",
-            joinedDate: m.joinedAt
-              ? new Date(m.joinedAt).toLocaleDateString()
-              : new Date().toLocaleDateString(),
-            spendingLimit: Number(m.monthlyLimit || 0),
-          }));
-          setMembers(mapped);
-        }
-      } catch (e) {
-        // ignore
-      }
-    })();
+    fetchFamilies();
   }, [user]);
 
   const handleAddMember = async () => {
-    // Validate form data with Zod
     const result = addMemberSchema.safeParse(newMember);
     if (!result.success) {
       const errors: Partial<Record<keyof AddMemberFormData, string>> = {};
-
       result.error.errors.forEach((error) => {
         const path = error.path[0] as keyof AddMemberFormData;
         errors[path] = error.message;
       });
-
       setNewMemberErrors(errors);
       return;
     }
@@ -166,7 +175,6 @@ export default function FamilyPage() {
         return;
       }
 
-      // Success
       setNewMember({
         name: "",
         email: "",
@@ -177,7 +185,8 @@ export default function FamilyPage() {
       setNewMemberErrors({});
       setIsAddMemberOpen(false);
 
-      alert("Family member added successfully");
+      // 🔥 Refresh family data
+      await fetchFamilies();
     } catch (err) {
       console.error("Failed to add family member:", err);
       alert("Failed to add family member");
@@ -188,31 +197,14 @@ export default function FamilyPage() {
     setMembers(members.filter((m) => m.id !== id));
   };
 
-  const handleRoleChange = (memberId: string, newRole: "admin" | "member") => {
-    setMembers(
-      members.map((m) => (m.id === memberId ? { ...m, role: newRole } : m)),
-    );
-  };
-
-  const handleSpendingLimitChange = (memberId: string, limit: number) => {
-    setMembers(
-      members.map((m) =>
-        m.id === memberId ? { ...m, spendingLimit: limit } : m,
-      ),
-    );
-  };
-
   const handleSaveSettings = async () => {
-    // Validate form data with Zod
     const result = familySettingsSchema.safeParse(editingSettings);
     if (!result.success) {
       const errors: Partial<Record<keyof FamilySettingsFormData, string>> = {};
-
       result.error.errors.forEach((error) => {
         const path = error.path[0] as keyof FamilySettingsFormData;
         errors[path] = error.message;
       });
-
       setSettingsErrors(errors);
       return;
     }
@@ -238,12 +230,11 @@ export default function FamilyPage() {
         return;
       }
 
-      // Success
       setFamilyId(data.family.id);
       setSettingsErrors({});
       setIsSettingsOpen(false);
 
-      alert("Family settings saved successfully");
+      await fetchFamilies();
     } catch (e) {
       console.error(e);
       alert("An unexpected error occurred");
