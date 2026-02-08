@@ -12,29 +12,51 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft } from "lucide-react"
+import { loginSchema, type LoginFormData } from "@/lib/validations"
 
 export default function LoginPage() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<LoginFormData>({
     email: "",
     password: "",
-    rememberMe: false,
   })
 
+  const [errors, setErrors] = useState<Partial<Record<keyof LoginFormData, string>>>({})
   const [isLoading, setIsLoading] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
 
   const router = useRouter()
   const { toast } = useToast()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target
+    const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: value,
     }))
+    // Clear error for this field when user starts typing
+    if (errors[name as keyof LoginFormData]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: undefined,
+      }))
+    }
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate form data with Zod
+    const result = loginSchema.safeParse(formData)
+    if (!result.success) {
+      const newErrors: Partial<Record<keyof LoginFormData, string>> = {}
+      result.error.errors.forEach((error) => {
+        const path = error.path[0] as keyof LoginFormData
+        newErrors[path] = error.message
+      })
+      setErrors(newErrors)
+      return
+    }
+
     setIsLoading(true)
     ;(async () => {
       try {
@@ -81,8 +103,11 @@ export default function LoginPage() {
                   placeholder="you@example.com"
                   value={formData.email}
                   onChange={handleChange}
-                  required
+                  className={errors.email ? "border-red-500" : ""}
                 />
+                {errors.email && (
+                  <p className="text-sm text-red-500">{errors.email}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -94,21 +119,20 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={handleChange}
-                  required
+                  className={errors.password ? "border-red-500" : ""}
                 />
+                {errors.password && (
+                  <p className="text-sm text-red-500">{errors.password}</p>
+                )}
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="rememberMe"
-                    name="rememberMe"
-                    checked={formData.rememberMe}
+                    checked={rememberMe}
                     onCheckedChange={(checked) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        rememberMe: checked as boolean,
-                      }))
+                      setRememberMe(checked as boolean)
                     }
                   />
                   <Label htmlFor="rememberMe" className="font-normal cursor-pointer">

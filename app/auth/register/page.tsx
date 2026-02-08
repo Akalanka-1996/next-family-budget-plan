@@ -11,9 +11,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowLeft } from "lucide-react"
+import { registerSchema, type RegisterFormData } from "@/lib/validations"
+import { ZodError } from "zod"
 
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegisterFormData>({
     firstName: "",
     lastName: "",
     email: "",
@@ -21,6 +23,7 @@ export default function RegisterPage() {
     confirmPassword: "",
   })
 
+  const [errors, setErrors] = useState<Partial<Record<keyof RegisterFormData, string>>>({})
   const [isLoading, setIsLoading] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,6 +32,13 @@ export default function RegisterPage() {
       ...prev,
       [name]: value,
     }))
+    // Clear error for this field when user starts typing
+    if (errors[name as keyof RegisterFormData]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: undefined,
+      }))
+    }
   }
 
   const { toast } = useToast()
@@ -36,6 +46,19 @@ export default function RegisterPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate form data with Zod
+    const result = registerSchema.safeParse(formData)
+    if (!result.success) {
+      const newErrors: Partial<Record<keyof RegisterFormData, string>> = {}
+      result.error.errors.forEach((error) => {
+        const path = error.path[0] as keyof RegisterFormData
+        newErrors[path] = error.message
+      })
+      setErrors(newErrors)
+      return
+    }
+
     setIsLoading(true)
     ;(async () => {
       try {
@@ -86,8 +109,11 @@ export default function RegisterPage() {
                     placeholder="John"
                     value={formData.firstName}
                     onChange={handleChange}
-                    required
+                    className={errors.firstName ? "border-red-500" : ""}
                   />
+                  {errors.firstName && (
+                    <p className="text-sm text-red-500">{errors.firstName}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name</Label>
@@ -97,8 +123,11 @@ export default function RegisterPage() {
                     placeholder="Doe"
                     value={formData.lastName}
                     onChange={handleChange}
-                    required
+                    className={errors.lastName ? "border-red-500" : ""}
                   />
+                  {errors.lastName && (
+                    <p className="text-sm text-red-500">{errors.lastName}</p>
+                  )}
                 </div>
               </div>
 
@@ -111,8 +140,11 @@ export default function RegisterPage() {
                   placeholder="you@example.com"
                   value={formData.email}
                   onChange={handleChange}
-                  required
+                  className={errors.email ? "border-red-500" : ""}
                 />
+                {errors.email && (
+                  <p className="text-sm text-red-500">{errors.email}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -124,8 +156,11 @@ export default function RegisterPage() {
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={handleChange}
-                  required
+                  className={errors.password ? "border-red-500" : ""}
                 />
+                {errors.password && (
+                  <p className="text-sm text-red-500">{errors.password}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -137,8 +172,11 @@ export default function RegisterPage() {
                   placeholder="••••••••"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  required
+                  className={errors.confirmPassword ? "border-red-500" : ""}
                 />
+                {errors.confirmPassword && (
+                  <p className="text-sm text-red-500">{errors.confirmPassword}</p>
+                )}
               </div>
 
               <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
