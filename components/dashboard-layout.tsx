@@ -56,7 +56,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
                 <span className="text-primary-foreground font-bold">💰</span>
               </div>
-              <span className="hidden sm:inline text-xl font-bold text-foreground">FamilyBudget</span>
+              <span className="hidden sm:inline text-xl font-bold text-foreground">SaveTogether</span>
             </div>
 
             {/* Desktop Navigation */}
@@ -102,12 +102,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     <span className="text-sm">{user?.name ?? user?.email ?? 'Account'}</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
+                  {/* <DropdownMenuItem asChild>
                     <Link href="/settings">
                       <Settings className="w-4 h-4 mr-2" />
                       Settings
                     </Link>
-                  </DropdownMenuItem>
+                  </DropdownMenuItem> */}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={logout}
@@ -149,7 +149,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       <footer className="border-t border-border bg-card mt-12 py-6">
         <div className="px-4 sm:px-6 lg:px-8 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} FamilyBudget. All rights reserved.
+          © {new Date().getFullYear()} SaveTogether. All rights reserved.
         </div>
       </footer>
     </div>

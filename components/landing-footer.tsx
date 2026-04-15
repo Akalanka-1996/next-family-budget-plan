@@ -17,7 +17,7 @@ export function LandingFooter() {
               <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-lg">💰</span>
               </div>
-              <span className="text-lg font-bold text-foreground">FamilyBudget</span>
+              <span className="text-lg font-bold text-foreground">SaveTogether</span>
             </div>
             <p className="text-sm text-muted-foreground">
               Manage your family finances together with ease and transparency.
@@ -95,7 +95,7 @@ export function LandingFooter() {
 
         {/* Bottom Footer */}
         <div className="mt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">© {currentYear} FamilyBudget. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© {currentYear} SaveTogether. All rights reserved.</p>
           <div className="flex items-center gap-4">
             <a
               href="https://twitter.com"
@@ -112,7 +112,7 @@ export function LandingFooter() {
               <Github className="w-5 h-5" />
             </a>
             <a
-              href="mailto:hello@familybudget.com"
+              href="mailto:hello@savetogether.com"
               className="text-muted-foreground hover:text-foreground transition"
               aria-label="Email"
             >

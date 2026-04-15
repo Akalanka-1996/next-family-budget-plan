@@ -115,7 +115,7 @@ export default function LoginPage() {
           <CardHeader>
             toast <CardTitle className="text-2xl">Welcome Back</CardTitle>
             <CardDescription>
-              Sign in to your FamilyBudget account
+              Sign in to your SaveTogether account
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -124,7 +124,7 @@ export default function RegisterPage() {
           <CardHeader>
             <CardTitle className="text-2xl">Create Account</CardTitle>
             <CardDescription>
-              Join FamilyBudget to start managing your family finances
+              Join SaveTogether to start managing your family finances
             </CardDescription>
           </CardHeader>
           <CardContent>
